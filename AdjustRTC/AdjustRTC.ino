@@ -23,13 +23,13 @@
 DS3231 RTC; //Create the DS3231 object
 
 char buf[1024];
-int pos = 0, _pos1 = 0, _pos2 = 0;
 char tmp;
 
 char weekDay[][4] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
-int _year, _month, _day, _hour, _minute, _second, _day_of_week;
-
+int _year = 0, _month = 0, _day = 0, _hour = 0, _minute = 0, _second = 0, _day_of_week = 0;
+int pos = 0, _pos1 = 0, _pos2 = 0;
+  
 DateTime displayTime();
 
 void setup()
@@ -38,6 +38,7 @@ void setup()
   delay(2000);
   Wire.begin();
   RTC.begin();
+  clearBuf();
   Serial.println("Welcome to the RTC Time Seting Utility.");
   Serial.println("");
   Serial.println("Usage:");
@@ -79,10 +80,17 @@ void setup()
   Serial.println("");
   Serial.print("#> ");  
 }
+void clearBuf()
+{
+  for(int i = 0; i < 1024; i++)
+  {
+    buf[i] = NULL;
+  }
+}
 
 void loop()
 {
-  
+
   if(Serial.available())
     {
       while(Serial.available())
@@ -97,9 +105,9 @@ void loop()
            buf[pos++] = tmp;
         }
       }
-
    if((tmp == 10) && pos > 0)
     {
+      Serial.println("");
       displayTime();
       Serial.println("==================================="); 
       
@@ -152,7 +160,13 @@ void loop()
       t = c2.substring(_pos1, _pos2);
       t.trim();
       _day_of_week = t.toInt();       
-      _pos1 = _pos2;      
+      _pos1 = _pos2;  
+      
+      if(_day_of_week > 7 || _day_of_week < 0)
+      {
+        _day_of_week = 0;
+      }
+      
       RTC.adjust(DateTime(_year, _month, _day, _hour, _minute, _second, _day_of_week));
       Serial.print("Year ");
       Serial.println(_year, DEC);
@@ -171,19 +185,14 @@ void loop()
       Serial.println("===================================");
       displayTime();
       Serial.println("");
-      Serial.print("#> ");        
+      Serial.print("#> ");  
+      _year = 0; _month = 0; _day = 0; _hour = 0; _minute = 0; _second = 0; _day_of_week = 0;
+      pos = 0, _pos1 = 0; _pos2 = 0;      
+      clearBuf();
     } 
   }
   
 }
-
-void clearBufferArray()              // function to clear buffer array
-{
-  for (int i=0; i<pos;i++)
-    { buf[i]=NULL;}                  // clear all index of array with command NULL
-    pos = 0;
-}
-
 
 DateTime displayTime () 
 {
