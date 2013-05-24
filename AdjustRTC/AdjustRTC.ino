@@ -17,54 +17,75 @@
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#include <Arduino.h>
 #include <Wire.h>
 #include "DS3231.h"
 
+
 DS3231 RTC; //Create the DS3231 object
 
-char buf[1024];
-char tmp;
 
 char weekDay[][4] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
-int _year = 0, _month = 0, _day = 0, _hour = 0, _minute = 0, _second = 0, _day_of_week = 0;
-int pos = 0, _pos1 = 0, _pos2 = 0;
-  
 DateTime displayTime();
+String* command;
+
+int set(int argc, char** argv);
+int get(int argc, char** argv);
+
+struct cmnd
+{
+	char* command;
+	int (*callback)(int argc, char** argv);
+};
+
+static cmnd cli[] = {
+		{"set", &set},
+		{"get", &get},
+		{NULL, NULL},
+};
+
+void prompt()
+{
+	Serial.println();
+	Serial.print("#> ");
+}
 
 void setup()
 {
-  Serial.begin(19200);             // the Serial port of Arduino baud rate.
-  delay(2000);
+  Serial.begin(57600);             // the Serial port of Arduino baud rate.
+  delay(200);
+  command = new String();
+
   Wire.begin();
   RTC.begin();
-  clearBuf();
-  Serial.println("Welcome to the RTC Time Seting Utility.");
+
+  Serial.println("Welcome to the RTC Time Setting Utility.");
   Serial.println("");
   Serial.println("Usage:");
   Serial.println("");  
-  Serial.println("\tset <YEAR>, <MONTH>, <DAY>, <HOUR24>, <MINUTE>, <SECOND>, <DAY_OF_WEEK>");  
+  Serial.println("\tset <YEAR> <MONTH> <DAY> <HOUR24> <MINUTE> <SECOND> <DAY_OF_WEEK>");
   Serial.println("");    
   Serial.println("\tExample:");      
   Serial.println("");    
-  Serial.print("\t\tCurrent RTC Time: ");  
+  Serial.print("\t\t");
   DateTime now = displayTime();
   Serial.println(""); 
   Serial.println("\tExample Set Command:");      
   Serial.println("");      
   Serial.print("\t\tset ");
   Serial.print(now.year());
-  Serial.print(", ");
+  Serial.print(" ");
   Serial.print(now.month());
-  Serial.print(", ");
+  Serial.print(" ");
   Serial.print(now.date());
-  Serial.print(", ");
+  Serial.print(" ");
   Serial.print(now.hour());
-  Serial.print(", ");
+  Serial.print(" ");
   Serial.print(now.minute());
-  Serial.print(", ");
+  Serial.print(" ");
   Serial.print(now.second());
-  Serial.print(", ");
+  Serial.print(" ");
   Serial.print(now.dayOfWeek());  
   Serial.println(""); 
   Serial.println(""); 
@@ -78,121 +99,111 @@ void setup()
       Serial.println(weekDay[i]);      
   }
   Serial.println("");
-  Serial.print("#> ");  
+  prompt();
 }
-void clearBuf()
-{
-  for(int i = 0; i < 1024; i++)
-  {
-    buf[i] = NULL;
-  }
-}
+
+
 
 void loop()
 {
+	if(Serial.available())
+	{
+		char read_v = (char)(Serial.read());
+		if(read_v != 10 && read_v != 13)
+		{
+			if(read_v == 127){
+				if(command->length() > 0){
+					String *tmp = command;
+					command = new String(command->substring(0, command->length()-1));
+					delete tmp;
+					Serial.print("\b \b");
+				}
+			}else{
+				command->concat(read_v);
+				Serial.print(read_v);
+			}
+		}else
+		{
+			Serial.println();
+			Serial.println();
+			command->trim();
+			unsigned int length = command->length();
+			char _command[length + 1];
+			int argc = 1;
+			for(unsigned int i = 0; i < length; i++)
+			{
+				_command[i] = (*command)[i];
+				if((*command)[i] == ' ')
+				{
+					argc++;
+					_command[i] = 0;
+				}
+			}
 
-  if(Serial.available())
-    {
-      while(Serial.available())
-      {
-
-        tmp = Serial.read();
-        Serial.write(tmp);
-        if(pos == 0 && (tmp == 10 || tmp == 13))
-        {
-        }
-        else{
-           buf[pos++] = tmp;
-        }
-      }
-   if((tmp == 10) && pos > 0)
-    {
-      Serial.println("");
-      displayTime();
-      Serial.println("==================================="); 
-      
-      String command(buf);
-      command.trim();
-      String c2 = command.substring(command.indexOf(" "));
-      c2.trim();
-      int _pos1 = c2.indexOf(",");
-      String t = c2.substring(0, _pos1);
-      t.trim();
-      _year = t.toInt();
-
-      _pos1++;
-      _pos2 = c2.indexOf(",", _pos1);
-      t = c2.substring(_pos1, _pos2);
-      t.trim();
-      _month = t.toInt();
-      _pos1 = _pos2;
-
-      _pos1++;      
-      _pos2 = c2.indexOf(",", _pos1);
-      t = c2.substring(_pos1, _pos2);
-      t.trim();
-      _day = t.toInt();
-      _pos1 = _pos2;      
-
-      _pos1++;
-      _pos2 = c2.indexOf(",", _pos1);
-      t = c2.substring(_pos1, _pos2);
-      t.trim();
-      _hour = t.toInt();
-      _pos1 = _pos2;      
-
-      _pos1++;
-      _pos2 = c2.indexOf(",", _pos1);
-      t = c2.substring(_pos1, _pos2);
-      t.trim();
-      _minute = t.toInt();
-      _pos1 = _pos2;      
-      
-      _pos1++;
-      _pos2 = c2.indexOf(",", _pos1);
-      t = c2.substring(_pos1, _pos2);
-      t.trim();
-      _second = t.toInt();   
-      _pos1 = _pos2;      
-   
-      _pos1++;
-      _pos2 = c2.indexOf(",", _pos1);
-      t = c2.substring(_pos1, _pos2);
-      t.trim();
-      _day_of_week = t.toInt();       
-      _pos1 = _pos2;  
-      
-      if(_day_of_week > 7 || _day_of_week < 0)
-      {
-        _day_of_week = 0;
-      }
-      
-      RTC.adjust(DateTime(_year, _month, _day, _hour, _minute, _second, _day_of_week));
-      Serial.print("Year ");
-      Serial.println(_year, DEC);
-      Serial.print("Month ");      
-      Serial.println(_month, DEC);
-      Serial.print("Day ");      
-      Serial.println(_day, DEC);
-      Serial.print("Hour ");      
-      Serial.println(_hour, DEC);
-      Serial.print("Minute ");      
-      Serial.println(_minute, DEC);
-      Serial.print("Second ");      
-      Serial.println(_second, DEC);
-      Serial.print("Day Of Week ");      
-      Serial.println(weekDay[_day_of_week]);      
-      Serial.println("===================================");
-      displayTime();
-      Serial.println("");
-      Serial.print("#> ");  
-      _year = 0; _month = 0; _day = 0; _hour = 0; _minute = 0; _second = 0; _day_of_week = 0;
-      pos = 0, _pos1 = 0; _pos2 = 0;      
-      clearBuf();
-    } 
-  }
-  
+			_command[length] = 0;
+			char* argv[argc];
+			int pos = 0;
+			for (int i = 0; i < argc; i++)
+			{
+				argv[i] = _command + pos;
+				pos += strlen(argv[i]) + 1;
+			}
+			bool found = false;
+			for(int commands_pos = 0; cli[commands_pos].callback != NULL; commands_pos++)
+			{
+				if(strcmp(cli[commands_pos].command, argv[0]) == 0)
+				{
+					found = true;
+					cli[commands_pos].callback(argc, argv);
+					prompt();
+				}
+			}
+			if(!found)
+			{
+				Serial.print("\t The command \"");
+				Serial.print(argv[0]);
+				Serial.println("\" could not be found.");
+				prompt();
+			}
+			delete command;
+			command = new String();
+		}
+	}
 }
+
+int set(int argc, char** argv)
+{
+	if(argc != 8)
+	{
+		Serial.print("\tset command expected 7 parameters, found: ");
+		Serial.println(argc -1);
+		return 2;
+	}
+	int count = 1;
+	RTC.adjust(
+			DateTime(
+					atoi(argv[count++]),
+					atoi(argv[count++]),
+					atoi(argv[count++]),
+					atoi(argv[count++]),
+					atoi(argv[count++]),
+					atoi(argv[count++]),
+					atoi(argv[count++])
+			)
+	);
+	Serial.print("\tSuccessfully set the clock. ");
+	displayTime();
+	return 0;
+}
+
+int get(int argc, char** argv)
+{
+	Serial.print("\t");
+	displayTime();
+	return 0;
+}
+
+
 
 DateTime displayTime () 
 {
@@ -201,14 +212,19 @@ DateTime displayTime ()
     Serial.print("RTC's Current Time: ");
     Serial.print(now.year(), DEC);
     Serial.print('/');
+    if(now.month() < 10){Serial.print(0, DEC);}
     Serial.print(now.month(), DEC);
     Serial.print('/');
+    if(now.date() < 10){Serial.print(0, DEC);}
     Serial.print(now.date(), DEC);
     Serial.print(' ');
+    if(now.hour() < 10){Serial.print(0, DEC);}
     Serial.print(now.hour(), DEC);
     Serial.print(':');
+    if(now.minute() < 10){Serial.print(0, DEC);}
     Serial.print(now.minute(), DEC);
     Serial.print(':');
+    if(now.second() < 10){Serial.print(0, DEC);}
     Serial.print(now.second(), DEC);
     Serial.print(" ");
     Serial.print(weekDay[now.dayOfWeek()]);
